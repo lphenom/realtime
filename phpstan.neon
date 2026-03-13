@@ -1,0 +1,12 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # json_decode returns mixed; explicit array check + casts are used throughout
+        - '#Cannot cast mixed to (int|string|bool)#'
+        - '#Cannot access offset .* on mixed#'
+        # PHPUnit mock generics
+        - '#Method .* should return .* but returns PHPUnit\\Framework\\MockObject\\MockObject#'

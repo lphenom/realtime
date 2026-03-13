@@ -1,0 +1,73 @@
+# =============================================================================
+# lphenom/realtime — Development docker-compose
+# PHP 8.1-alpine | MySQL 8.0.36 | Redis 7.2-alpine
+#
+# Usage:
+#   make up     — build + start all services (+ composer install)
+#   make down   — stop and remove containers
+#   make test   — run PHPUnit inside app container
+#   make lint   — run PHPStan + PHP-CS-Fixer inside app container
+# =============================================================================
+version: '3.9'
+services:
+  # ---------------------------------------------------------------------------
+  # PHP 8.1-alpine application container
+  # SSH agent is forwarded from host for VCS package access (github.com)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      ssh:
+        - default
+    volumes:
+      - .:/app
+      - vendor:/app/vendor
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: realtime
+      DB_USER: realtime
+      DB_PASS: realtime
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SSH_AUTH_SOCK: /ssh-agent
+    volumes_from: []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    working_dir: /app
+  # ---------------------------------------------------------------------------
+  # MySQL 8.0.36 — persistent event store for DbEventStoreBus
+  # ---------------------------------------------------------------------------
+  db:
+    image: mysql:8.0.36
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: realtime
+      MYSQL_USER: realtime
+      MYSQL_PASSWORD: realtime
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "realtime", "-prealtime"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  # ---------------------------------------------------------------------------
+  # Redis 7.2-alpine — pub/sub for WebSocketBus + optional queue backend
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+volumes:
+  vendor:
+  db_data:

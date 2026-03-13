@@ -1,0 +1,75 @@
+{
+    "name": "lphenom/realtime",
+    "description": "Realtime communications for LPhenom — unified WebSocket and Long-Polling API (KPHP-compatible)",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["lphenom", "realtime", "websocket", "long-polling", "kphp", "pubsub"],
+    "homepage": "https://github.com/lphenom/realtime",
+    "authors": [
+        {
+            "name": "dmitrii-pov",
+            "email": "popkovd.o@yandex.ru"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "lphenom/db": "0.3.*",
+        "lphenom/redis": "0.3.*",
+        "lphenom/queue": "0.2.*",
+        "lphenom/http": "0.1.*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "phpstan/phpstan": "^1.10",
+        "friendsofphp/php-cs-fixer": "^3.40 <3.65"
+    },
+    "autoload": {
+        "psr-4": {
+            "LPhenom\\Realtime\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LPhenom\\Realtime\\Tests\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/lphenom/redis"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/lphenom/db"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/lphenom/queue"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/lphenom/http"
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/lphenom/core"
+        }
+    ],
+    "scripts": {
+        "test": "vendor/bin/phpunit --colors=always",
+        "lint": "vendor/bin/php-cs-fixer fix --dry-run --diff --allow-risky=yes",
+        "lint-fix": "vendor/bin/php-cs-fixer fix --allow-risky=yes",
+        "analyse": "vendor/bin/phpstan analyse --memory-limit=256M",
+        "check": ["@lint", "@analyse", "@test"]
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.1.0"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
+

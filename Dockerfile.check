@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1.4
+# =============================================================================
+# Dockerfile.check — KPHP binary build + PHAR build verification
+#
+# Stage 0: vendor-build  — installs production Composer deps (PHP 8.1)
+# Stage 1: kphp-build    — compiles with vkcom/kphp, runs binary
+# Stage 2: phar-build    — builds PHAR + smoke-test
+# Stage 3: check-complete — proves both stages finished
+#
+# Usage:
+#   DOCKER_BUILDKIT=1 docker build --ssh default -f Dockerfile.check -t lphenom-realtime-check .
+# =============================================================================
+# -----------------------------------------------------------------------------
+# Stage 0: Install production dependencies (needs SSH for VCS packages)
+# -----------------------------------------------------------------------------
+FROM php:8.1.31-cli AS vendor-build
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends git openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=composer:2.9.5 /usr/bin/composer /usr/bin/composer
+WORKDIR /build
+COPY composer.json ./
+RUN --mount=type=ssh \
+    mkdir -p -m 0600 /root/.ssh \
+    && ssh-keyscan github.com >> /root/.ssh/known_hosts \
+    && composer install \
+        --no-dev \
+        --no-scripts \
+        --no-progress \
+        --prefer-dist \
+        --optimize-autoloader \
+        --no-interaction
+# -----------------------------------------------------------------------------
+# Stage 1: KPHP binary build
+# Uses the official vkcom/kphp image (Ubuntu 20.04 focal, KPHP + PHP 7.4-vkext).
+# KPHP parses PHP source and compiles to C++ — it does NOT need PHP 8.1 at compile time.
+# -----------------------------------------------------------------------------
+FROM vkcom/kphp:latest AS kphp-build
+# Optionally install php8.1-vkext for KPHP-aware type stubs (non-critical)
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends wget ca-certificates \
+    && wget -q --timeout=10 -O /etc/apt/trusted.gpg.d/vkpartner.asc \
+         https://artifactory-external.vkpartner.ru/artifactory/api/gpg/key/public \
+    && echo "deb [arch=amd64] https://artifactory-external.vkpartner.ru/artifactory/kphp focal main" \
+         > /etc/apt/sources.list.d/vkpartner.list \
+    && apt-get update -qq \
+    && apt-get install -y --no-install-recommends php8.1-vkext \
+    && echo "=== php8.1-vkext installed ===" \
+    || echo "=== php8.1-vkext SKIPPED (no network or repo unavailable — OK) ===" \
+    ; rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY src/    ./src/
+COPY build/  ./build/
+COPY --from=vendor-build /build/vendor ./vendor
+# Compile to binary. Exits non-zero on any compilation error.
+RUN kphp \
+        -d /build/kphp-out \
+        -M cli \
+        /build/build/kphp-entrypoint.php \
+    && echo "=== KPHP compilation: OK ===" \
+    && ls -lh /build/kphp-out/
+# Run the compiled binary (KPHP CLI binaries refuse to run as root)
+RUN useradd -m kphp-runner \
+    && su kphp-runner -c '/build/kphp-out/cli' \
+    && echo "=== KPHP binary run: OK ==="
+# -----------------------------------------------------------------------------
+# Stage 2: PHAR (shared-hosting) build
+# -----------------------------------------------------------------------------
+FROM php:8.1.31-cli AS phar-build
+WORKDIR /build
+RUN echo "phar.readonly = Off" > /usr/local/etc/php/conf.d/phar.ini
+COPY --from=composer:2.9.5 /usr/bin/composer /usr/bin/composer
+COPY src/          ./src/
+COPY build/        ./build/
+COPY composer.json ./
+# Reuse vendor from Stage 0 (no SSH needed — already installed)
+COPY --from=vendor-build /build/vendor ./vendor
+# Build the PHAR archive
+RUN php -d phar.readonly=0 /build/build/build-phar.php
+# Smoke-test: require the PHAR and verify autoloading
+RUN php /build/build/smoke-test-phar.php /build/lphenom-realtime.phar \
+    && echo "=== PHAR smoke-test: OK ==="
+# -----------------------------------------------------------------------------
+# Final stage — copies both artefacts, proves both stages completed
+# -----------------------------------------------------------------------------
+FROM scratch AS check-complete
+COPY --from=kphp-build /build/kphp-out/cli          /kphp-cli-binary
+COPY --from=phar-build /build/lphenom-realtime.phar  /lphenom-realtime.phar
