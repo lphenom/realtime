@@ -4,6 +4,7 @@ parameters:
         - src
         - tests
     treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false
     ignoreErrors:
         # json_decode returns mixed; explicit array check + casts are used throughout
         - '#Cannot cast mixed to (int|string|bool)#'

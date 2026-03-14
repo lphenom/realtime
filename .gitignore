@@ -4,3 +4,6 @@
 /lphenom-realtime.phar
 .env
 /kphp-out/
+/composer.lock
+/.idea/
+/.vscode/

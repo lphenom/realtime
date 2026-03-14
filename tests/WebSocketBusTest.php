@@ -1,12 +1,15 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Tests;
-use LPhenom\Redis\Client\RedisClientInterface;
-use LPhenom\Redis\PubSub\RedisPublisher;
+
 use LPhenom\Realtime\Bus\WebSocketBus;
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
+use LPhenom\Redis\Client\RedisClientInterface;
+use LPhenom\Redis\PubSub\RedisPublisher;
 use PHPUnit\Framework\TestCase;
+
 /**
  * @covers \LPhenom\Realtime\Bus\WebSocketBus
  */

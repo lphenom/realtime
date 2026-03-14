@@ -1,10 +1,13 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Bus;
+
 use LPhenom\Db\Contract\ConnectionInterface;
 use LPhenom\Db\Param\Param;
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
+
 /**
  * DB-backed realtime bus for shared hosting.
  *

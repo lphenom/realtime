@@ -1,9 +1,12 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Bus;
-use LPhenom\Redis\PubSub\RedisPublisher;
+
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
+use LPhenom\Redis\PubSub\RedisPublisher;
+
 /**
  * WebSocket-capable realtime bus.
  *

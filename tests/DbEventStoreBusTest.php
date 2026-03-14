@@ -1,11 +1,14 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Tests;
+
 use LPhenom\Db\Contract\ConnectionInterface;
 use LPhenom\Db\Contract\ResultInterface;
 use LPhenom\Realtime\Bus\DbEventStoreBus;
 use LPhenom\Realtime\Message;
 use PHPUnit\Framework\TestCase;
+
 /**
  * @covers \LPhenom\Realtime\Bus\DbEventStoreBus
  */

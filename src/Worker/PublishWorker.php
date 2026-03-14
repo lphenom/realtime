@@ -1,11 +1,14 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Worker;
+
 use LPhenom\Queue\Job;
 use LPhenom\Queue\JobHandlerInterface;
 use LPhenom\Realtime\Bus\QueuedPublishBus;
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
+
 /**
  * Queue worker handler for realtime.publish jobs.
  *

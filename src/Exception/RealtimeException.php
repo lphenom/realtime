@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Exception;
+
 /**
  * Base exception for lphenom/realtime package.
  *

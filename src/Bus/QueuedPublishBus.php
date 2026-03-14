@@ -1,10 +1,13 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Bus;
+
 use LPhenom\Queue\Job;
 use LPhenom\Queue\QueueInterface;
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
+
 /**
  * Async publish decorator — defers publish() to a background queue worker.
  *

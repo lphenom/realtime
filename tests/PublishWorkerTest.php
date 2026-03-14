@@ -1,12 +1,15 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Tests;
+
 use LPhenom\Queue\Job;
 use LPhenom\Realtime\Bus\QueuedPublishBus;
 use LPhenom\Realtime\Message;
 use LPhenom\Realtime\RealtimeBusInterface;
 use LPhenom\Realtime\Worker\PublishWorker;
 use PHPUnit\Framework\TestCase;
+
 /**
  * @covers \LPhenom\Realtime\Worker\PublishWorker
  */

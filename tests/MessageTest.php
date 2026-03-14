@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Tests;
+
 use LPhenom\Realtime\Message;
 use PHPUnit\Framework\TestCase;
+
 /**
  * @covers \LPhenom\Realtime\Message
  */

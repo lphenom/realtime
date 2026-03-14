@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Migration;
+
 use LPhenom\Db\Contract\ConnectionInterface;
 use LPhenom\Db\Migration\MigrationInterface;
+
 /**
  * Migration: create the realtime_events table.
  *

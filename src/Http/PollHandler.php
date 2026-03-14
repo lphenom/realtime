@@ -1,10 +1,13 @@
 <?php
 declare(strict_types=1);
+
 namespace LPhenom\Realtime\Http;
+
 use LPhenom\Http\HandlerInterface;
 use LPhenom\Http\Request;
 use LPhenom\Http\Response;
 use LPhenom\Realtime\RealtimeBusInterface;
+
 /**
  * HTTP handler for the long-polling endpoint.
  *
