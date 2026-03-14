@@ -25,6 +25,10 @@ lint-fix: ## Run PHP-CS-Fixer (fix) inside the app container
 	$(COMPOSE_EXEC) vendor/bin/php-cs-fixer fix --allow-risky=yes
 analyse: ## Run PHPStan inside the app container
 	$(COMPOSE_EXEC) vendor/bin/phpstan analyse --memory-limit=256M
-kphp-check: ## Build KPHP binary + PHAR (requires SSH agent forwarded)
-	DOCKER_BUILDKIT=1 docker build --ssh default -f Dockerfile.check -t lphenom-realtime-check .
+kphp-check: ## Build KPHP binary + PHAR. Uses COMPOSER_AUTH env if set, else SSH agent.
+ifdef COMPOSER_AUTH
+	DOCKER_BUILDKIT=1 docker build --build-arg "COMPOSER_AUTH=$(COMPOSER_AUTH)" --progress plain -f Dockerfile.check -t lphenom-realtime-check .
+else
+	DOCKER_BUILDKIT=1 docker build --ssh default --progress plain -f Dockerfile.check -t lphenom-realtime-check .
+endif
 check: lint analyse test ## Run full CI check (lint + analyse + test) inside Docker

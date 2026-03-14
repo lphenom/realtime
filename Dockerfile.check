@@ -11,19 +11,23 @@
 #   DOCKER_BUILDKIT=1 docker build --ssh default -f Dockerfile.check -t lphenom-realtime-check .
 # =============================================================================
 # -----------------------------------------------------------------------------
-# Stage 0: Install production dependencies (needs SSH for VCS packages)
+# Stage 0: Install production dependencies
+# COMPOSER_AUTH is passed as a build-arg and consumed by Composer automatically.
+# For public packages (lphenom/*) it is used to authenticate and avoid rate-limits.
+# In CI: --build-arg COMPOSER_AUTH='{"github-oauth":{"github.com":"<GITHUB_TOKEN>"}}'
+# Locally: export COMPOSER_AUTH='...' before running make kphp-check
 # -----------------------------------------------------------------------------
 FROM php:8.1.31-cli AS vendor-build
 RUN apt-get update -qq \
-    && apt-get install -y --no-install-recommends git openssh-client \
+    && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=composer:2.9.5 /usr/bin/composer /usr/bin/composer
 WORKDIR /build
 COPY composer.json ./
-RUN --mount=type=ssh \
-    mkdir -p -m 0600 /root/.ssh \
-    && ssh-keyscan github.com >> /root/.ssh/known_hosts \
-    && composer install \
+# ARG is declared before RUN so Docker does not cache across different token values
+ARG COMPOSER_AUTH=""
+ENV COMPOSER_AUTH=${COMPOSER_AUTH}
+RUN composer install \
         --no-dev \
         --no-scripts \
         --no-progress \

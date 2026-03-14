@@ -18,10 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup SSH agent (for VCS packages on github.com)
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
@@ -29,8 +25,6 @@ jobs:
           extensions: pdo, pdo_mysql, redis
           coverage: none
           tools: composer:2.9.5
-      - name: Add github.com to known_hosts
-        run: ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Cache Composer packages
         uses: actions/cache@v4
         with:
@@ -38,6 +32,10 @@ jobs:
           key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}
           restore-keys: composer-${{ matrix.php }}-
       - name: Install dependencies
+        # GITHUB_TOKEN is always available in Actions — authenticates Composer for
+        # public lphenom/* VCS packages and prevents GitHub API rate-limit errors.
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
       - name: PHP-CS-Fixer (lint)
         run: vendor/bin/php-cs-fixer fix --dry-run --diff --allow-risky=yes
@@ -54,14 +52,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Build KPHP binary + PHAR
+        # COMPOSER_AUTH is passed as a build-arg into Dockerfile.check's vendor-build stage.
+        # GITHUB_TOKEN is automatic — no secrets configuration required.
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
         run: |
           DOCKER_BUILDKIT=1 docker build \
-            --ssh default \
+            --build-arg "COMPOSER_AUTH=${COMPOSER_AUTH}" \
             --progress plain \
             -f Dockerfile.check \
             -t lphenom-realtime-check \
