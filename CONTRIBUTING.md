@@ -1,34 +1,73 @@
-# Contributing to lphenom/realtime
-Thank you for your interest in contributing!
-## Requirements
+# Участие в разработке lphenom/realtime
+
+Спасибо за интерес к проекту! 🎉
+
+## Требования
+
 - PHP >= 8.1
-- Docker + Docker Compose (all commands run inside Docker)
-- SSH key configured for GitHub (for VCS package access)
-## Development setup
+- Docker + Docker Compose (для запуска тестов с сервисами)
+- Composer
+
+## Настройка окружения
+
 ```bash
-# Clone the repository
 git clone git@github.com:lphenom/realtime.git
 cd realtime
-# Start services and install dependencies
-make up
-# Run tests
+composer install
+
+# Запуск тестов
 make test
-# Run linter
-make lint
-# Run static analysis
-make analyse
-# Verify KPHP compatibility + PHAR build
-make kphp-check
 ```
-## Code style
-- `declare(strict_types=1);` in every PHP file
-- No trailing commas in function calls (KPHP compatibility)
-- No `__destruct()`, no constructor property promotion, no `readonly` (KPHP compatibility)
-- PSR-12 coding standard, enforced via PHP-CS-Fixer
-## Commits
-- Small, focused commits
-- Conventional Commits format: `feat(realtime): ...`, `fix(bus): ...`, `docs: ...`, `chore: ...`
-- Push to `main` after each commit
-## KPHP compatibility
-All code in `src/` must be compilable with `vkcom/kphp`. Run `make kphp-check` before submitting a PR.
-See [docs/realtime.md](docs/realtime.md) and the KPHP compatibility rules in the project docs.
+
+## Стиль кода
+
+PSR-12. Автоисправление:
+
+```bash
+make lint-fix
+```
+
+Проверка:
+
+```bash
+make lint
+```
+
+## Статический анализ
+
+```bash
+make analyse   # PHPStan level 8
+```
+
+## Совместимость с KPHP
+
+Весь код **обязан** оставаться KPHP-совместимым. Правила:
+
+- Нет constructor property promotion (`__construct(private $x)`)
+- Нет `readonly` свойств
+- Нет `Reflection`, `eval()`, `$$var`, `new $className()`
+- Нет `str_starts_with`, `str_ends_with`, `str_contains` — используйте `substr`/`strpos`
+- `try/catch` всегда с явным `catch`
+- Нет `callable` в типизированных массивах
+
+## Сообщения коммитов
+
+Следуйте [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat(realtime): добавить поддержку TTL
+fix(realtime): исправить обработку пустого ключа
+test(realtime): добавить интеграционный тест
+```
+
+## Чеклист Pull Request
+
+- [ ] Тесты проходят: `make test`
+- [ ] Нет ошибок линтера: `make lint`
+- [ ] PHPStan проходит: `make analyse`
+- [ ] KPHP-совместимо (нет запрещённых конструкций)
+- [ ] Документация обновлена при изменении публичного API
+
+## Лицензия
+
+Участвуя в проекте, вы соглашаетесь, что ваши изменения будут лицензированы под [MIT License](LICENSE).

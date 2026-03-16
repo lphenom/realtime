@@ -1,52 +1,52 @@
-# Server Setup Guide
+# Настройка сервера
 
-This document explains how to deploy **lphenom/realtime** in both modes:
+Этот документ объясняет развёртывание **lphenom/realtime** в двух режимах:
 
-- **Long-Polling mode** — shared hosting, Apache/Nginx + PHP-FPM, no extra processes
-- **WebSocket mode** — VPS/cloud, KPHP-compiled binary or PHP ReactPHP server
+- **Long-Polling режим** — shared hosting, Apache/Nginx + PHP-FPM, без дополнительных процессов
+- **WebSocket режим** — VPS/облако, KPHP-скомпилированный бинарник или PHP ReactPHP сервер
 
 ---
 
-## Architecture overview
+## Обзор архитектуры
 
 ```
 ┌────────────────── Long-Polling (shared hosting) ──────────────────┐
 │                                                                     │
-│  Client ──── HTTP GET /realtime/poll?topic=chat&since=42 ────────► │
-│                             PHP (PollHandler)                       │
-│                                    │                                │
-│                             MySQL (realtime_events)                 │
-│                                    │                                │
-│  Client ◄──── {"messages":[...],"last_id":45} ───────────────────  │
+│  Клиент ──── HTTP GET /realtime/poll?topic=chat&since=42 ────────► │
+│                          PHP (PollHandler)                          │
+│                                 │                                   │
+│                         MySQL (realtime_events)                     │
+│                                 │                                   │
+│  Клиент ◄──── {"messages":[...],"last_id":45} ───────────────────  │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────── WebSocket (VPS / KPHP) ──────────────────────────┐
 │                                                                     │
 │  Publisher ──► WebSocketBus::publish() ──► MySQL + Redis pub/sub   │
 │                                                    │                │
-│                                          Redis channel             │
+│                                          Redis-канал               │
 │                                         "realtime:chat"            │
 │                                                    │                │
-│                                         WS Server process          │
-│                                      (subscribes to Redis)          │
+│                                         WS Server процесс          │
+│                                      (подписан на Redis)            │
 │                                                    │                │
-│  WS Client ◄────────── push message ───────────────┘               │
-│  WS Client ◄────────── push message                                │
+│  WS Клиент ◄────────── push сообщение ─────────────┘               │
+│  WS Клиент ◄────────── push сообщение                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Mode 1: Long-Polling — shared hosting
+## Режим 1: Long-Polling — shared hosting
 
-### Requirements
+### Требования
 
 - PHP >= 8.1
 - MySQL 5.7+ / 8.0
-- Apache or Nginx + PHP-FPM
-- **No additional processes needed**
+- Apache или Nginx + PHP-FPM
+- **Дополнительные процессы не нужны**
 
-### Step 1: Run the migration
+### Шаг 1: Запуск миграции
 
 ```php
 <?php
@@ -64,20 +64,20 @@ $db = new PdoMySqlConnection(
 
 $migration = new CreateRealtimeEventsTable();
 $migration->up($db);
-echo "Migration OK\n";
+echo "Миграция выполнена\n";
 ```
 
-Run once:
+Запуск (один раз):
 
 ```bash
 php bootstrap/migrate.php
 ```
 
-### Step 2: Register the poll endpoint
+### Шаг 2: Регистрация эндпоинта poll
 
 ```php
 <?php
-// public/index.php (or your router)
+// public/index.php (или ваш роутер)
 require __DIR__ . '/../vendor/autoload.php';
 
 use LPhenom\Db\Driver\PdoMySqlConnection;
@@ -88,14 +88,14 @@ use LPhenom\Http\Request;
 $db  = new PdoMySqlConnection('mysql:host=127.0.0.1;dbname=myapp;charset=utf8mb4', 'user', 'pass');
 $bus = new DbEventStoreBus($db);
 
-// Route: GET /realtime/poll
+// Маршрут: GET /realtime/poll
 $request = Request::fromGlobals();
 $handler = new PollHandler($bus);
 $response = $handler->handle($request);
 $response->send();
 ```
 
-### Step 3: Nginx configuration
+### Шаг 3: Настройка Nginx
 
 ```nginx
 server {
@@ -104,7 +104,7 @@ server {
     root /var/www/myapp/public;
 
     location /realtime/poll {
-        # Long-polling: allow up to 30s request
+        # Long-polling: разрешить запросы до 30с
         fastcgi_read_timeout 35s;
         fastcgi_pass unix:/run/php/php8.1-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $document_root/index.php;
@@ -120,7 +120,7 @@ server {
 }
 ```
 
-### Step 4: Apache configuration
+### Шаг 4: Настройка Apache
 
 ```apache
 <VirtualHost *:80>
@@ -131,8 +131,6 @@ server {
         AllowOverride All
         Require all granted
     </Directory>
-
-    # .htaccess rewrite
 </VirtualHost>
 ```
 
@@ -144,7 +142,7 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ index.php [QSA,L]
 ```
 
-### Publishing from PHP (server side)
+### Публикация на стороне PHP
 
 ```php
 use LPhenom\Realtime\Bus\DbEventStoreBus;
@@ -152,27 +150,27 @@ use LPhenom\Realtime\Message;
 
 $bus = new DbEventStoreBus($db);
 
-// In any controller / service:
+// В любом контроллере / сервисе:
 $bus->publish('chat', new Message(
-    0,                          // id=0 → auto-assigned by DB
-    'chat',                     // topic
-    json_encode(['text' => 'Hello world', 'user' => 'alice']),
+    0,                          // id=0 → авто-назначение БД
+    'chat',                     // топик
+    json_encode(['text' => 'Привет мир', 'user' => 'alice']),
     new \DateTimeImmutable()
 ));
 ```
 
-### API contract
+### Контракт API
 
 ```
 GET /realtime/poll?topic={topic}&since={lastId}&limit={n}
 
-Response 200:
+Ответ 200:
 {
   "messages": [
     {
       "id":      5,
       "topic":   "chat",
-      "payload": "{\"text\":\"Hello\",\"user\":\"alice\"}",
+      "payload": "{\"text\":\"Привет\",\"user\":\"alice\"}",
       "ts":      "2026-03-14 12:00:01"
     }
   ],
@@ -180,24 +178,24 @@ Response 200:
 }
 ```
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `topic`   | required | Channel name |
-| `since`   | `0`     | Return only messages with `id > since` |
-| `limit`   | `100`   | Max messages per request (capped at 500) |
+| Параметр | По умолчанию | Описание |
+|---|---|---|
+| `topic` | обязателен | Имя канала |
+| `since` | `0` | Возвращать только сообщения с `id > since` |
+| `limit` | `100` | Максимум сообщений за запрос (не более 500) |
 
 ---
 
-## Mode 2: WebSocket — VPS / KPHP binary
+## Режим 2: WebSocket — VPS / KPHP binary
 
-### Requirements
+### Требования
 
-- VPS / cloud server
+- VPS / облачный сервер
 - MySQL 8.0
-- Redis 6+ (for pub/sub)
-- PHP 8.1 CLI **or** KPHP-compiled binary
+- Redis 6+ (для pub/sub)
+- PHP 8.1 CLI **или** KPHP-скомпилированный бинарник
 
-### Step 1: Setup WebSocketBus
+### Шаг 1: Настройка WebSocketBus
 
 ```php
 <?php
@@ -221,16 +219,16 @@ $publisher  = new RedisPublisher($redisClient);
 $bus = new WebSocketBus($store, $publisher);
 ```
 
-### Step 2: Write the WebSocket server process
+### Шаг 2: Написание процесса WebSocket-сервера
 
-A WebSocket server must:
-1. Accept WebSocket connections from browsers
-2. Subscribe to Redis channels on behalf of clients
-3. Forward Redis messages to the correct WebSocket clients
+WebSocket-сервер должен:
+1. Принимать WebSocket-соединения от браузеров
+2. Подписываться на Redis-каналы от имени клиентов
+3. Пересылать Redis-сообщения нужным WebSocket-клиентам
 
-#### Minimal example using Ratchet (PHP)
+#### Минимальный пример с Ratchet (PHP)
 
-Install Ratchet:
+Установить Ratchet:
 
 ```bash
 composer require cboden/ratchet
@@ -253,8 +251,8 @@ use LPhenom\Redis\PubSub\MessageHandlerInterface;
 use LPhenom\Redis\PubSub\RedisSubscriber;
 
 /**
- * Manages all connected WebSocket clients.
- * Subscriptions: topic → SplObjectStorage of connections.
+ * Управляет всеми подключёнными WebSocket-клиентами.
+ * Подписки: топик → SplObjectStorage соединений.
  */
 final class RealtimeServer implements MessageComponentInterface
 {
@@ -263,12 +261,12 @@ final class RealtimeServer implements MessageComponentInterface
 
     public function onOpen(ConnectionInterface $conn): void
     {
-        echo "New connection #{$conn->resourceId}\n";
+        echo "Новое соединение #{$conn->resourceId}\n";
     }
 
     public function onMessage(ConnectionInterface $from, $msg): void
     {
-        // Client sends: {"action":"subscribe","topic":"chat","since":0}
+        // Клиент отправляет: {"action":"subscribe","topic":"chat","since":0}
         $data = json_decode($msg, true);
         if (!is_array($data)) {
             return;
@@ -297,7 +295,7 @@ final class RealtimeServer implements MessageComponentInterface
         foreach ($this->topicClients as $storage) {
             $storage->detach($conn);
         }
-        echo "Connection #{$conn->resourceId} closed\n";
+        echo "Соединение #{$conn->resourceId} закрыто\n";
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e): void
@@ -306,7 +304,7 @@ final class RealtimeServer implements MessageComponentInterface
     }
 
     /**
-     * Called from Redis subscriber when a message arrives on "realtime:{topic}".
+     * Вызывается Redis-подписчиком при получении сообщения в "realtime:{topic}".
      */
     public function broadcastToTopic(string $topic, string $payload): void
     {
@@ -322,16 +320,13 @@ final class RealtimeServer implements MessageComponentInterface
 
 $server = new RealtimeServer();
 
-// Redis subscriber runs in a separate thread/process or via event loop integration
-// For simplicity: run Redis subscriber in a forked process
+// Redis-подписчик запускается в отдельном процессе (через pcntl_fork)
 $pid = pcntl_fork();
 if ($pid === 0) {
-    // Child: Redis subscriber loop
+    // Дочерний: цикл Redis-подписчика
     $redisConn  = RedisConnector::connect(new RedisConnectionConfig('127.0.0.1', 6379));
     $subscriber = new RedisSubscriber($redisConn);
 
-    // Subscribe to all realtime channels (pattern)
-    // Adjust channels list to match your topics
     $topics = ['chat', 'events', 'notifications'];
     foreach ($topics as $topic) {
         $subscriber->subscribe('realtime:' . $topic, new class($server, $topic) implements MessageHandlerInterface {
@@ -349,32 +344,32 @@ if ($pid === 0) {
     exit(0);
 }
 
-// Parent: WebSocket server
+// Родительский: WebSocket-сервер
 $wsServer = IoServer::factory(
     new HttpServer(new WsServer($server)),
     8080
 );
-echo "WebSocket server listening on ws://0.0.0.0:8080\n";
+echo "WebSocket сервер слушает ws://0.0.0.0:8080\n";
 $wsServer->run();
 ```
 
-Run:
+Запуск:
 
 ```bash
 php ws-server.php
 ```
 
-#### Running as a KPHP binary (compiled mode)
+#### Запуск как KPHP binary (скомпилированный режим)
 
 ```bash
-# Compile
+# Компиляция
 kphp -d /build/kphp-out -M cli build/kphp-entrypoint.php
 
-# Run
+# Запуск
 /build/kphp-out/cli
 ```
 
-### Step 3: Nginx proxy for WebSocket
+### Шаг 3: Nginx-прокси для WebSocket
 
 ```nginx
 server {
@@ -393,17 +388,17 @@ server {
         proxy_set_header    Upgrade    $http_upgrade;
         proxy_set_header    Connection "upgrade";
         proxy_set_header    Host       $host;
-        proxy_read_timeout  86400s;   # keep connection alive
+        proxy_read_timeout  86400s;   # держать соединение живым
     }
 }
 ```
 
-### Step 4: Systemd service for WS server
+### Шаг 4: Systemd-сервис для WS-сервера
 
 ```ini
 # /etc/systemd/system/realtime-ws.service
 [Unit]
-Description=lphenom/realtime WebSocket server
+Description=lphenom/realtime WebSocket сервер
 After=network.target redis.service mysql.service
 
 [Service]
@@ -425,9 +420,9 @@ systemctl status realtime-ws
 
 ---
 
-## Mode 3: Async with QueuedPublishBus
+## Режим 3: Асинхронный с QueuedPublishBus
 
-When `publish()` is called from an HTTP request handler and you don't want to block:
+Когда `publish()` вызывается из HTTP-обработчика и нежелательно блокировать ответ:
 
 ```php
 use LPhenom\Queue\Driver\RedisQueue;
@@ -435,21 +430,21 @@ use LPhenom\Realtime\Bus\QueuedPublishBus;
 use LPhenom\Realtime\Worker\PublishWorker;
 use LPhenom\Queue\Worker;
 
-// In your HTTP handler — publish is instant, just pushes to queue
+// В HTTP-обработчике — publish мгновенный, просто кладёт в очередь
 $asyncBus = new QueuedPublishBus($innerBus, new RedisQueue($redisClient, 'realtime-jobs'));
-$asyncBus->publish('chat', $msg);  // returns in microseconds
+$asyncBus->publish('chat', $msg);  // выполняется за микросекунды
 
-// In a background worker (separate process / systemd service):
+// В фоновом воркере (отдельный процесс / systemd-сервис):
 $worker = new Worker(new RedisQueue($redisClient, 'realtime-jobs'));
 $worker->register(QueuedPublishBus::JOB_NAME, new PublishWorker($innerBus));
-$worker->run();  // blocking loop
+$worker->run();  // блокирующий цикл
 ```
 
 ---
 
-## Health check endpoint
+## Эндпоинт проверки работоспособности
 
-Add a simple health check for monitoring:
+Добавьте простую проверку для мониторинга:
 
 ```php
 // GET /realtime/health
@@ -459,24 +454,23 @@ echo json_encode(['status' => 'ok', 'ts' => (new \DateTimeImmutable())->format('
 
 ---
 
-## Security considerations
+## Вопросы безопасности
 
-| Concern | Recommendation |
-|---------|----------------|
-| Topic names | Validate against an allowlist; never expose raw user input as topic |
-| Authentication | Validate session/JWT before `publish()` and before WS `subscribe` action |
-| Rate limiting | Throttle `publish()` per user in your application layer |
-| CORS | Set `Access-Control-Allow-Origin` on the poll endpoint |
-| WebSocket origin | Check `Origin` header in `onOpen()` |
+| Проблема | Рекомендация |
+|---|---|
+| Имена топиков | Валидировать по белому списку; никогда не передавать сырой пользовательский ввод как топик |
+| Аутентификация | Проверять сессию/JWT перед `publish()` и перед WS-действием `subscribe` |
+| Ограничение запросов | Ограничивать вызовы `publish()` на пользователя на уровне приложения |
+| CORS | Установить `Access-Control-Allow-Origin` на эндпоинте poll |
+| Origin WebSocket | Проверять заголовок `Origin` в `onOpen()` |
 
-Example auth check in poll handler:
+Пример проверки аутентификации в poll-обработчике:
 
 ```php
-// Before handling the poll request:
+// Перед обработкой poll-запроса:
 if (!$session->isAuthenticated()) {
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
+    echo json_encode(['error' => 'Не авторизован']);
     exit;
 }
 ```
-

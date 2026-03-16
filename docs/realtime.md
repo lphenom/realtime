@@ -1,9 +1,14 @@
-# lphenom/realtime — WebSocket vs Long-Polling guide
-This document explains how to write domain code that works identically in both
-**shared hosting (long-polling)** and **WebSocket (real-time)** modes without duplication.
+# Единый API реального времени: WebSocket vs Long-Polling
+
+Этот документ объясняет, как писать доменный код, который одинаково работает в режиме
+**shared hosting (long-polling)** и **WebSocket (реальное время)** без дублирования.
+
 ---
-## The unified interface
-All realtime implementations share one interface:
+
+## Единый интерфейс
+
+Все реализации realtime используют один интерфейс:
+
 ```php
 interface RealtimeBusInterface
 {
@@ -12,52 +17,75 @@ interface RealtimeBusInterface
     public function readSince(string $topic, int $sinceId, int $limit): array;
 }
 ```
-Your **business logic** calls `publish()` to emit events and `readSince()` to fetch history.
-The implementation (DB-only or DB+Redis) is injected via DI — business code never changes.
+
+**Бизнес-логика** вызывает `publish()` для отправки событий и `readSince()` для получения истории.
+Реализация (только БД или БД+Redis) подключается через DI — доменный код не меняется.
+
 ---
-## Implementations at a glance
-| Class | Transport | Best for |
+
+## Реализации
+
+| Класс | Транспорт | Подходит для |
 |---|---|---|
-| `DbEventStoreBus` | MySQL only | Shared hosting, long-polling |
-| `WebSocketBus` | MySQL + Redis pub/sub | VPS/cloud, WebSocket clients |
-| `QueuedPublishBus` | decorator + any queue | High-load async publish |
+| `DbEventStoreBus` | только MySQL | Shared hosting, long-polling |
+| `WebSocketBus` | MySQL + Redis pub/sub | VPS/облако, WebSocket-клиенты |
+| `QueuedPublishBus` | декоратор + любая очередь | Высоконагруженный асинхронный publish |
+
 ---
-## Mode 1: Shared hosting / Long-Polling
-### Setup
+
+## Режим 1: Shared hosting / Long-Polling
+
+### Настройка
+
 ```php
 use LPhenom\Db\Driver\PdoMySqlConnection;
 use LPhenom\Realtime\Bus\DbEventStoreBus;
 use LPhenom\Realtime\Migration\CreateRealtimeEventsTable;
+
 $connection = new PdoMySqlConnection('mysql:host=db;dbname=app', 'user', 'pass');
-// Run migration once (or use SchemaMigrations)
+
+// Выполнить миграцию один раз (или использовать SchemaMigrations)
 $migration = new CreateRealtimeEventsTable();
 $migration->up($connection);
+
 $bus = new DbEventStoreBus($connection);
 ```
-### Publishing
+
+### Публикация
+
 ```php
 use LPhenom\Realtime\Message;
-// id=0 means "auto-assign" — the DB assigns the real id on INSERT
-$bus->publish('chat', new Message(0, 'chat', '{"text":"Hello!"}', new \DateTimeImmutable()));
+
+// id=0 означает "назначить автоматически" — реальный id присваивает БД при INSERT
+$bus->publish('chat', new Message(0, 'chat', '{"text":"Привет!"}', new \DateTimeImmutable()));
 ```
-### Long-polling endpoint
+
+### Эндпоинт long-polling
+
 ```php
 use LPhenom\Http\Request;
 use LPhenom\Http\Response;
 use LPhenom\Realtime\Http\PollHandler;
-// Register with your router:
+
+// Регистрация в роутере:
 $router->get('/realtime/poll', new PollHandler($bus));
-// Client calls:
+
+// Клиент вызывает:
 // GET /realtime/poll?topic=chat&since=0&limit=50
-// Response: {"messages":[{"id":1,"topic":"chat","payload":"{...}","ts":"..."}],"last_id":1}
+// Ответ: {"messages":[{"id":1,"topic":"chat","payload":"{...}","ts":"..."}],"last_id":1}
 ```
-The client:
-1. Starts with `since=0`
-2. Receives messages and stores the last `id`
-3. Next request: `since={last_id}` — only new messages are returned
+
+Схема работы клиента:
+1. Начинает с `since=0`
+2. Получает сообщения и сохраняет последний `id`
+3. Следующий запрос: `since={last_id}` — возвращаются только новые сообщения
+
 ---
-## Mode 2: WebSocket / Real-time
-### Setup
+
+## Режим 2: WebSocket / Реальное время
+
+### Настройка
+
 ```php
 use LPhenom\Db\Driver\PdoMySqlConnection;
 use LPhenom\Redis\Client\PhpRedisClient;
@@ -66,75 +94,101 @@ use LPhenom\Redis\Connection\RedisConnector;
 use LPhenom\Redis\PubSub\RedisPublisher;
 use LPhenom\Realtime\Bus\DbEventStoreBus;
 use LPhenom\Realtime\Bus\WebSocketBus;
+
 $connection = new PdoMySqlConnection('mysql:host=db;dbname=app', 'user', 'pass');
 $store      = new DbEventStoreBus($connection);
+
 $config    = new RedisConnectionConfig('redis', 6379);
 $redisConn = RedisConnector::connect($config);
 $client    = new PhpRedisClient($redisConn);
 $publisher = new RedisPublisher($client);
+
 $bus = new WebSocketBus($store, $publisher);
 ```
-### Publishing
-Same as Mode 1 — the API is identical:
+
+### Публикация
+
+Аналогично Режиму 1 — API идентичен:
+
 ```php
-$bus->publish('chat', new Message(0, 'chat', '{"text":"Hi!"}', new \DateTimeImmutable()));
-// → writes to DB (history) AND publishes to Redis channel "realtime:chat" (live delivery)
+$bus->publish('chat', new Message(0, 'chat', '{"text":"Привет!"}', new \DateTimeImmutable()));
+// → записывает в БД (история) И публикует в Redis-канал "realtime:chat" (живая доставка)
 ```
-### WebSocket server subscription
-Your WebSocket server process subscribes to Redis channels and forwards to clients:
+
+### Подписка WebSocket-сервера
+
+Процесс WebSocket-сервера подписывается на Redis-каналы и пересылает сообщения клиентам:
+
 ```php
 use LPhenom\Redis\PubSub\MessageHandlerInterface;
 use LPhenom\Redis\PubSub\RedisSubscriber;
+
 final class WsForwarder implements MessageHandlerInterface
 {
     public function handle(string $channel, string $message): void
     {
-        // Forward $message to all WebSocket clients subscribed to $channel
-        // e.g.: WebSocketServer::broadcast($channel, $message);
+        // Переслать $message всем WebSocket-клиентам, подписанным на $channel
+        // например: WebSocketServer::broadcast($channel, $message);
     }
 }
-// Blocking loop — run in a separate process / KPHP coroutine
+
+// Блокирующий цикл — запускается в отдельном процессе / KPHP корутине
 $subscriber = new RedisSubscriber($dedicatedRedisConnection);
 $subscriber->subscribe('realtime:chat', new WsForwarder());
 ```
-### Client reconnect / history replay
-When a WebSocket client reconnects, it needs to backfill missed messages.
-Use `readSince()` — it reads from DB regardless of the bus type:
+
+### Переподключение клиента / воспроизведение истории
+
+При переподключении WebSocket-клиент должен догнать пропущенные сообщения.
+Используйте `readSince()` — он читает из БД независимо от типа шины:
+
 ```php
-// Client sends: {"action":"subscribe","topic":"chat","since":42}
+// Клиент отправляет: {"action":"subscribe","topic":"chat","since":42}
 $missed = $bus->readSince('chat', $lastSeenId, 100);
 foreach ($missed as $msg) {
     $ws->send($msg->getPayloadJson());
 }
 ```
+
 ---
-## Mode 3: Async / High-load (QueuedPublishBus)
-When `publish()` must not block the HTTP response, wrap any bus with `QueuedPublishBus`:
+
+## Режим 3: Асинхронный / Высоконагруженный (QueuedPublishBus)
+
+Когда `publish()` не должен блокировать HTTP-ответ, оберните любую шину в `QueuedPublishBus`:
+
 ```php
 use LPhenom\Queue\Driver\RedisQueue;
 use LPhenom\Realtime\Bus\QueuedPublishBus;
 use LPhenom\Realtime\Worker\PublishWorker;
 use LPhenom\Queue\Worker;
-// Publishing enqueues a job instead of writing to DB directly
+
+// Публикация ставит задачу в очередь вместо прямой записи в БД
 $asyncBus = new QueuedPublishBus($bus, $redisQueue);
-$asyncBus->publish('chat', $msg); // returns immediately
-// In your background worker process:
+$asyncBus->publish('chat', $msg); // возвращается немедленно
+
+// В фоновом процессе-воркере:
 $worker = new Worker($redisQueue);
 $worker->register(QueuedPublishBus::JOB_NAME, new PublishWorker($bus));
-$worker->run(); // blocking — processes jobs from queue
+$worker->run(); // блокирующий — обрабатывает задачи из очереди
 ```
+
 ---
-## Writing KPHP-compatible domain code
-Use the interface in your domain classes — KPHP compiles them without changes:
+
+## Написание KPHP-совместимого доменного кода
+
+Используйте интерфейс в доменных классах — KPHP компилирует их без изменений:
+
 ```php
 final class ChatService
 {
     /** @var RealtimeBusInterface */
     private RealtimeBusInterface $bus;
+
     public function __construct(RealtimeBusInterface $bus)
     {
         $this->bus = $bus;
     }
+
     public function sendMessage(string $room, string $text): void
     {
         $json = json_encode(['text' => $text], JSON_UNESCAPED_UNICODE);
@@ -143,6 +197,7 @@ final class ChatService
         }
         $this->bus->publish($room, new Message(0, $room, $json, new \DateTimeImmutable()));
     }
+
     /** @return Message[] */
     public function getHistory(string $room, int $sinceId): array
     {
@@ -150,10 +205,15 @@ final class ChatService
     }
 }
 ```
-Swap `DbEventStoreBus` for `WebSocketBus` at bootstrap — `ChatService` stays identical.
+
+Замените `DbEventStoreBus` на `WebSocketBus` при инициализации — `ChatService` остаётся неизменным.
+
 ---
-## Database schema
-The `CreateRealtimeEventsTable` migration creates:
+
+## Схема базы данных
+
+Миграция `CreateRealtimeEventsTable` создаёт:
+
 ```sql
 CREATE TABLE IF NOT EXISTS realtime_events (
   id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -164,25 +224,33 @@ CREATE TABLE IF NOT EXISTS realtime_events (
   INDEX idx_topic_id (topic, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
-The compound index `(topic, id)` makes `readSince()` queries O(log n) even with millions of rows.
-Run migration:
+
+Составной индекс `(topic, id)` обеспечивает O(log n) для запросов `readSince()` даже с миллионами строк.
+
+Запуск миграции:
+
 ```php
 $migration = new \LPhenom\Realtime\Migration\CreateRealtimeEventsTable();
 $migration->up($connection);
 ```
+
 ---
-## KPHP compatibility
-| Component | KPHP | Notes |
+
+## Совместимость с KPHP
+
+| Компонент | KPHP | Примечания |
 |---|---|---|
-| `Message` DTO | ✅ | No readonly, no constructor promotion |
-| `RealtimeBusInterface` | ✅ | No callable types |
-| `DbEventStoreBus` | ✅ | Uses `Param::str/int` — no raw PDO |
-| `WebSocketBus` | ✅ | Uses `RedisPublisher` (KPHP-compatible) |
-| `QueuedPublishBus` | ✅ | Uses `Job` and `QueueInterface` |
-| `PublishWorker` | ✅ | Implements `JobHandlerInterface` (no callable) |
-| `CreateRealtimeEventsTable` | ✅ | Uses `ConnectionInterface` |
-| `PollHandler` | ❌ shared only | `lphenom/http` has PHP 8.0+ trailing commas |
-For KPHP builds, use `DbEventStoreBus` or `WebSocketBus` directly.
-The `PollHandler` HTTP adapter is for PHP-only deployments.
-> See `build/kphp-entrypoint.php` for the explicit require_once order.
-> Run `make kphp-check` to verify KPHP compilation passes.
+| `Message` DTO | ✅ | Нет readonly, нет constructor promotion |
+| `RealtimeBusInterface` | ✅ | Нет callable-типов |
+| `DbEventStoreBus` | ✅ | Использует `Param::str/int` — не сырой PDO |
+| `WebSocketBus` | ✅ | Использует `RedisPublisher` (KPHP-совместим) |
+| `QueuedPublishBus` | ✅ | Использует `Job` и `QueueInterface` |
+| `PublishWorker` | ✅ | Реализует `JobHandlerInterface` (без callable) |
+| `CreateRealtimeEventsTable` | ✅ | Использует `ConnectionInterface` |
+| `PollHandler` | ❌ только PHP | `lphenom/http` использует trailing commas из PHP 8.0+ |
+
+Для KPHP-сборок используйте `DbEventStoreBus` или `WebSocketBus` напрямую.
+HTTP-адаптер `PollHandler` — только для PHP-деплоев.
+
+> Смотрите `build/kphp-entrypoint.php` для явного порядка `require_once`.
+> Запустите `make kphp-check` для проверки компиляции KPHP.

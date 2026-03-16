@@ -1,13 +1,20 @@
-# Security Policy
-## Supported Versions
-| Version | Supported |
-|---------|-----------|
-| 0.1.x   | ✅ Yes    |
-## Reporting a Vulnerability
-To report a security vulnerability, please **do not** open a public GitHub issue.
-Send an email to: popkovd.o@yandex.ru
-Include:
-- A description of the vulnerability
-- Steps to reproduce
-- Potential impact
-You will receive a response within 72 hours. If the issue is confirmed, a patch will be released as soon as possible.
+# Политика безопасности
+
+## Поддерживаемые версии
+
+| Версия | Поддержка |
+|--------|-----------|
+| 0.x    | ✅         |
+
+## Сообщить об уязвимости
+
+Пожалуйста, **не** создавайте публичный GitHub Issue для уязвимостей безопасности.
+
+Отправьте подробный отчёт на **popkovd.o@yandex.ru**, указав:
+
+- Описание уязвимости
+- Шаги для воспроизведения
+- Затронутые версии
+- Предлагаемое исправление (опционально)
+
+Мы стремимся ответить в течение **72 часов** и выпустить патч в течение **7 дней** для подтверждённых проблем.

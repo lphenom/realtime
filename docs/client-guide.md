@@ -1,37 +1,37 @@
-# Client Integration Guide
+# Руководство по клиентской интеграции
 
-How to connect to **lphenom/realtime** from frontend apps.
+Инструкция по подключению **lphenom/realtime** во фронтенд-приложениях.
 
-Supported modes:
-- **Long-Polling** — works everywhere, shared hosting, no WebSocket needed
-- **WebSocket** — real-time push, requires WS-capable server
+Поддерживаемые режимы:
+- **Long-Polling** — работает везде, подходит для shared hosting, WebSocket не нужен
+- **WebSocket** — доставка в реальном времени, требует WS-совместимого сервера
 
-Both modes use the same message format. You can switch between them by swapping a single client class.
+Оба режима используют одинаковый формат сообщений. Переключение между режимами — замена одного клиентского класса.
 
 ---
 
-## Message format
+## Формат сообщения
 
-Every message from the server looks like:
+Каждое сообщение от сервера выглядит так:
 
 ```json
 {
   "id":      42,
   "topic":   "chat",
-  "payload": "{\"text\":\"Hello!\",\"user\":\"alice\"}",
+  "payload": "{\"text\":\"Привет!\",\"user\":\"alice\"}",
   "ts":      "2026-03-14 12:00:01"
 }
 ```
 
-`payload` is a JSON string — parse it with `JSON.parse(msg.payload)`.
+`payload` — JSON-строка, её нужно распарсить через `JSON.parse(msg.payload)`.
 
-For WebSocket events the envelope is:
+Для WebSocket-событий конверт выглядит иначе:
 
 ```json
 {
   "event":   "message",
   "topic":   "chat",
-  "payload": "{\"text\":\"Hello!\",\"user\":\"alice\"}"
+  "payload": "{\"text\":\"Привет!\",\"user\":\"alice\"}"
 }
 ```
 
@@ -39,18 +39,18 @@ For WebSocket events the envelope is:
 
 ## Pure JavaScript
 
-### Long-Polling client
+### Long-Polling клиент
 
 ```js
 // realtime-poll.js
 class RealtimePollClient {
   /**
-   * @param {string} baseUrl  e.g. "https://example.com"
-   * @param {string} topic    e.g. "chat"
-   * @param {function} onMessage  called with parsed payload object per message
+   * @param {string} baseUrl  например "https://example.com"
+   * @param {string} topic    например "chat"
+   * @param {function} onMessage  вызывается с разобранным объектом payload
    * @param {object}  [options]
-   * @param {number}  [options.interval=3000]   poll interval ms
-   * @param {number}  [options.limit=50]        messages per request
+   * @param {number}  [options.interval=3000]   интервал опроса в мс
+   * @param {number}  [options.limit=50]        сообщений за запрос
    */
   constructor(baseUrl, topic, onMessage, options = {}) {
     this.baseUrl   = baseUrl;
@@ -92,7 +92,7 @@ class RealtimePollClient {
             const payload = JSON.parse(msg.payload);
             this.onMessage({ id: msg.id, topic: msg.topic, payload, ts: msg.ts });
           } catch (_) {
-            // invalid payload JSON — skip
+            // некорректный JSON payload — пропускаем
           }
         }
         if (data.last_id > this.lastId) {
@@ -100,19 +100,19 @@ class RealtimePollClient {
         }
       }
     } catch (err) {
-      console.warn('[RealtimePoll] fetch error:', err);
+      console.warn('[RealtimePoll] ошибка fetch:', err);
     }
 
     this._timer = setTimeout(() => this._poll(), this.interval);
   }
 }
 
-// ── Usage ────────────────────────────────────────────────────────────
+// ── Использование ────────────────────────────────────────────────────
 const client = new RealtimePollClient(
   'https://example.com',
   'chat',
   ({ payload }) => {
-    console.log('New message:', payload.text, 'from', payload.user);
+    console.log('Новое сообщение:', payload.text, 'от', payload.user);
     appendMessage(payload);
   },
   { interval: 2000 }
@@ -120,22 +120,22 @@ const client = new RealtimePollClient(
 
 client.start();
 
-// Stop polling when leaving the page
+// Остановить опрос при уходе со страницы
 window.addEventListener('beforeunload', () => client.stop());
 ```
 
-### WebSocket client
+### WebSocket клиент
 
 ```js
 // realtime-ws.js
 class RealtimeWsClient {
   /**
-   * @param {string}   wsUrl      e.g. "wss://example.com/realtime/ws"
-   * @param {string}   topic      e.g. "chat"
-   * @param {function} onMessage  called with parsed payload per message
+   * @param {string}   wsUrl      например "wss://example.com/realtime/ws"
+   * @param {string}   topic      например "chat"
+   * @param {function} onMessage  вызывается с разобранным payload
    * @param {object}   [options]
    * @param {number}   [options.reconnectDelay=3000]
-   * @param {number}   [options.since=0]  replay history since this id
+   * @param {number}   [options.since=0]  воспроизвести историю начиная с этого id
    */
   constructor(wsUrl, topic, onMessage, options = {}) {
     this.wsUrl          = wsUrl;
@@ -158,8 +158,9 @@ class RealtimeWsClient {
   }
 
   /**
-   * Send a message TO the server (if your server supports receive direction).
-   * Most realtime servers are receive-only on WS; publishing goes via HTTP POST.
+   * Отправить сообщение НА сервер (если сервер поддерживает входящие).
+   * Большинство realtime-серверов принимают только подписки;
+   * публикация идёт через HTTP POST.
    */
   sendRaw(data) {
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
@@ -172,8 +173,7 @@ class RealtimeWsClient {
     this._ws  = ws;
 
     ws.addEventListener('open', () => {
-      console.log('[RealtimeWS] connected');
-      // Subscribe to topic and request history replay since lastId
+      console.log('[RealtimeWS] подключено');
       ws.send(JSON.stringify({
         action: 'subscribe',
         topic:  this.topic,
@@ -186,7 +186,7 @@ class RealtimeWsClient {
         const envelope = JSON.parse(event.data);
 
         if (envelope.event === 'subscribed') {
-          console.log('[RealtimeWS] subscribed to', envelope.topic);
+          console.log('[RealtimeWS] подписан на', envelope.topic);
           return;
         }
 
@@ -196,29 +196,29 @@ class RealtimeWsClient {
           this.onMessage({ topic: envelope.topic, payload });
         }
       } catch (err) {
-        console.warn('[RealtimeWS] parse error:', err);
+        console.warn('[RealtimeWS] ошибка парсинга:', err);
       }
     });
 
     ws.addEventListener('close', () => {
       if (!this._stopped) {
-        console.log(`[RealtimeWS] disconnected, reconnecting in ${this.reconnectDelay}ms`);
+        console.log(`[RealtimeWS] отключено, переподключение через ${this.reconnectDelay}мс`);
         setTimeout(() => this._open(), this.reconnectDelay);
       }
     });
 
     ws.addEventListener('error', (err) => {
-      console.error('[RealtimeWS] error:', err);
+      console.error('[RealtimeWS] ошибка:', err);
     });
   }
 }
 
-// ── Usage ────────────────────────────────────────────────────────────
+// ── Использование ────────────────────────────────────────────────────
 const ws = new RealtimeWsClient(
   'wss://example.com/realtime/ws',
   'chat',
   ({ payload }) => {
-    console.log('New message:', payload.text, 'from', payload.user);
+    console.log('Новое сообщение:', payload.text, 'от', payload.user);
     appendMessage(payload);
   },
   { since: 0, reconnectDelay: 3000 }
@@ -227,9 +227,9 @@ const ws = new RealtimeWsClient(
 ws.connect();
 ```
 
-### Publishing a message (HTTP POST)
+### Публикация сообщения (HTTP POST)
 
-Sending messages is done via regular HTTP POST — not WebSocket:
+Отправка сообщений выполняется через обычный HTTP POST — не WebSocket:
 
 ```js
 async function publishMessage(topic, payload) {
@@ -242,17 +242,17 @@ async function publishMessage(topic, payload) {
   return res.json();
 }
 
-// Usage:
-await publishMessage('chat', { text: 'Hello!', user: 'alice' });
+// Использование:
+await publishMessage('chat', { text: 'Привет!', user: 'alice' });
 ```
 
-On the PHP side, your controller calls `$bus->publish()`.
+На стороне PHP контроллер вызывает `$bus->publish()`.
 
 ---
 
 ## Vue 3 (Composition API)
 
-### Composable for Long-Polling
+### Composable для Long-Polling
 
 ```js
 // composables/useRealtimePoll.js
@@ -326,22 +326,22 @@ async function sendMessage() {
 
 <template>
   <div class="chat">
-    <div class="status">{{ connected ? '🟢 Connected' : '🔴 Reconnecting…' }}</div>
+    <div class="status">{{ connected ? '🟢 Подключено' : '🔴 Переподключение…' }}</div>
     <ul class="messages">
       <li v-for="msg in messages" :key="msg.id">
-        <strong>{{ msg.user ?? 'Anonymous' }}</strong>: {{ msg.text }}
+        <strong>{{ msg.user ?? 'Аноним' }}</strong>: {{ msg.text }}
         <small>{{ msg.ts }}</small>
       </li>
     </ul>
     <form @submit.prevent="sendMessage">
-      <input v-model="newText" placeholder="Type a message…" />
-      <button type="submit">Send</button>
+      <input v-model="newText" placeholder="Введите сообщение…" />
+      <button type="submit">Отправить</button>
     </form>
   </div>
 </template>
 ```
 
-### Composable for WebSocket
+### Composable для WebSocket
 
 ```js
 // composables/useRealtimeWs.js
@@ -370,7 +370,7 @@ export function useRealtimeWs(topic, options = {}) {
         const payload = JSON.parse(envelope.payload)
         if (envelope.id > lastId) lastId = envelope.id
         messages.value.push({ id: envelope.id, ...payload })
-      } catch { /* ignore */ }
+      } catch { /* игнорируем */ }
     })
 
     ws.addEventListener('close', () => {
@@ -420,22 +420,22 @@ async function sendMessage() {
 
 <template>
   <div class="chat">
-    <span>{{ connected ? '🟢 Live' : '🔴 Reconnecting…' }}</span>
+    <span>{{ connected ? '🟢 Live' : '🔴 Переподключение…' }}</span>
     <ul>
       <li v-for="msg in messages" :key="msg.id">
         <b>{{ msg.user }}</b>: {{ msg.text }}
       </li>
     </ul>
-    <input v-model="newText" @keyup.enter="sendMessage" placeholder="Message…" />
+    <input v-model="newText" @keyup.enter="sendMessage" placeholder="Сообщение…" />
   </div>
 </template>
 ```
 
 ---
 
-## React (hooks)
+## React (хуки)
 
-### Hook for Long-Polling
+### Хук для Long-Polling
 
 ```tsx
 // hooks/useRealtimePoll.ts
@@ -476,7 +476,10 @@ export function useRealtimePoll<T = Record<string, unknown>>(
           + `&since=${lastIdRef.current}&limit=50`
 
         const res  = await fetch(url, { credentials: 'include' })
-        const data = await res.json() as { messages: Array<{id: number; topic: string; ts: string; payload: string}>; last_id: number }
+        const data = await res.json() as {
+          messages: Array<{id: number; topic: string; ts: string; payload: string}>;
+          last_id: number
+        }
         if (cancelled) return
 
         setConnected(true)
@@ -540,7 +543,7 @@ export function ChatRoom({ room }: { room: string }) {
 
   return (
     <div>
-      <p>{connected ? '🟢 Connected' : '🔴 Reconnecting…'}</p>
+      <p>{connected ? '🟢 Подключено' : '🔴 Переподключение…'}</p>
       <ul>
         {messages.map(m => (
           <li key={m.id}>
@@ -550,15 +553,15 @@ export function ChatRoom({ room }: { room: string }) {
         ))}
       </ul>
       <form onSubmit={send}>
-        <input value={text} onChange={e => setText(e.target.value)} placeholder="Message…" />
-        <button type="submit">Send</button>
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="Сообщение…" />
+        <button type="submit">Отправить</button>
       </form>
     </div>
   )
 }
 ```
 
-### Hook for WebSocket
+### Хук для WebSocket
 
 ```tsx
 // hooks/useRealtimeWs.ts
@@ -608,7 +611,7 @@ export function useRealtimeWs<T = Record<string, unknown>>(
           const payload = JSON.parse(envelope.payload as string) as T
           if (envelope.id > lastIdRef.current) lastIdRef.current = envelope.id
           setMessages(prev => [...prev, { id: envelope.id, topic, payload }])
-        } catch { /* skip malformed */ }
+        } catch { /* пропускаем некорректные */ }
       })
 
       ws.addEventListener('close', () => {
@@ -661,7 +664,7 @@ export function ChatRoom({ room }: { room: string }) {
 
   return (
     <div>
-      <span>{connected ? '🟢 Live' : '🔴 Reconnecting…'}</span>
+      <span>{connected ? '🟢 Live' : '🔴 Переподключение…'}</span>
       <ul>
         {messages.map(m => (
           <li key={m.id}>
@@ -671,7 +674,7 @@ export function ChatRoom({ room }: { room: string }) {
       </ul>
       <form onSubmit={send}>
         <input value={text} onChange={e => setText(e.target.value)} />
-        <button type="submit">Send</button>
+        <button type="submit">Отправить</button>
       </form>
     </div>
   )
@@ -680,14 +683,14 @@ export function ChatRoom({ room }: { room: string }) {
 
 ---
 
-## Switching between Long-Polling and WebSocket
+## Переключение между Long-Polling и WebSocket
 
-The only difference between modes is **which client class you use**. Your component code stays the same. Use an environment variable to switch:
+Единственное отличие — **какой клиентский класс используется**. Код компонента не меняется. Используйте переменную окружения для переключения:
 
 ```js
-// poll.js — Universal adapter (pure JS)
+// Универсальный адаптер (pure JS)
 function createRealtimeClient(topic, onMessage) {
-  const wsUrl = window.REALTIME_WS_URL  // undefined on shared hosting
+  const wsUrl = window.REALTIME_WS_URL  // undefined на shared hosting
 
   if (wsUrl) {
     const client = new RealtimeWsClient(wsUrl, topic, onMessage)
@@ -702,22 +705,22 @@ function createRealtimeClient(topic, onMessage) {
 ```
 
 ```js
-// Vue: set in env
-// VITE_REALTIME_MODE=ws     (or poll)
+// Vue: задаётся в .env
+// VITE_REALTIME_MODE=ws     (или poll)
 // VITE_REALTIME_WS_URL=wss://example.com/realtime/ws
 // VITE_REALTIME_API_URL=https://example.com
 ```
 
 ---
 
-## Demo: Complete HTML page (no build tool)
+## Демо: полная HTML-страница (без системы сборки)
 
 ```html
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>lphenom/realtime demo</title>
+  <title>lphenom/realtime демо</title>
   <style>
     body    { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
     #msgs   { border: 1px solid #ccc; min-height: 200px; padding: 10px; overflow-y: auto; }
@@ -728,18 +731,18 @@ function createRealtimeClient(topic, onMessage) {
 </head>
 <body>
 
-<h2>Chat (topic: <em>demo</em>)</h2>
-<div id="status">Connecting…</div>
+<h2>Чат (топик: <em>demo</em>)</h2>
+<div id="status">Подключение…</div>
 <div id="msgs"></div>
 <form id="form">
-  <input id="text" placeholder="Type a message…" autocomplete="off" />
-  <button type="submit">Send</button>
+  <input id="text" placeholder="Введите сообщение…" autocomplete="off" />
+  <button type="submit">Отправить</button>
 </form>
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL   = 'https://example.com';          // change me
-const WS_URL    = 'wss://example.com/realtime/ws'; // comment out to use long-polling
+const API_URL   = 'https://example.com';          // изменить меня
+const WS_URL    = 'wss://example.com/realtime/ws'; // закомментировать для long-polling
 const TOPIC     = 'demo';
 const USE_WS    = typeof WS_URL !== 'undefined';
 
@@ -750,7 +753,7 @@ function setStatus(text) {
 
 function appendMessage(payload) {
   const li = document.createElement('div');
-  li.textContent = `${payload.user ?? 'anon'}: ${payload.text}`;
+  li.textContent = `${payload.user ?? 'аноним'}: ${payload.text}`;
   document.getElementById('msgs').appendChild(li);
 }
 
@@ -763,13 +766,13 @@ async function poll() {
     const url = `${API_URL}/realtime/poll?topic=${TOPIC}&since=${lastId}&limit=50`;
     const res  = await fetch(url, { credentials: 'include' });
     const data = await res.json();
-    setStatus('🟢 Connected (polling)');
+    setStatus('🟢 Подключено (polling)');
     for (const msg of (data.messages ?? [])) {
       appendMessage(JSON.parse(msg.payload));
     }
     if (data.last_id > lastId) lastId = data.last_id;
   } catch {
-    setStatus('🔴 Reconnecting…');
+    setStatus('🔴 Переподключение…');
   }
   pollTimer = setTimeout(poll, 2000);
 }
@@ -779,7 +782,7 @@ function connectWs() {
   const ws = new WebSocket(WS_URL);
 
   ws.addEventListener('open', () => {
-    setStatus('🟢 Connected (WebSocket)');
+    setStatus('🟢 Подключено (WebSocket)');
     ws.send(JSON.stringify({ action: 'subscribe', topic: TOPIC, since: lastId }));
   });
 
@@ -794,7 +797,7 @@ function connectWs() {
   });
 
   ws.addEventListener('close', () => {
-    setStatus('🔴 Disconnected, reconnecting…');
+    setStatus('🔴 Отключено, переподключение…');
     setTimeout(connectWs, 3000);
   });
 
@@ -831,16 +834,15 @@ document.getElementById('form').addEventListener('submit', async (e) => {
 
 ---
 
-## Summary: modes comparison
+## Сравнение режимов
 
-| Feature | Long-Polling | WebSocket |
-|---------|-------------|-----------|
-| Latency | 0 – interval ms | < 50 ms |
-| Infrastructure | PHP-FPM only | WS process + Redis |
-| Works on shared hosting | ✅ | ❌ |
-| Scales with load balancer | ✅ (stateless) | ⚠️ sticky sessions or Redis fanout |
-| History replay on reconnect | ✅ built-in | ✅ via `since` parameter |
-| PHP code changes needed | none | none |
+| Характеристика | Long-Polling | WebSocket |
+|---|---|---|
+| Задержка | 0 – интервал мс | < 50 мс |
+| Инфраструктура | только PHP-FPM | WS-процесс + Redis |
+| Работает на shared hosting | ✅ | ❌ |
+| Масштабирование с балансировщиком | ✅ (stateless) | ⚠️ sticky sessions или Redis fanout |
+| Воспроизведение истории при переподключении | ✅ встроено | ✅ через параметр `since` |
+| Изменения PHP-кода | нет | нет |
 
-> See [`server-setup.md`](./server-setup.md) for server infrastructure details.
-
+> Подробнее об инфраструктуре сервера — в [`server-setup.md`](./server-setup.md).

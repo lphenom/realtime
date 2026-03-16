@@ -1,42 +1,64 @@
 # lphenom/realtime
-Realtime communications for LPhenom — unified WebSocket / Long-Polling API.
+
+Коммуникации реального времени для LPhenom — единый API WebSocket / Long-Polling.
+
 [![CI](https://github.com/lphenom/realtime/actions/workflows/ci.yml/badge.svg)](https://github.com/lphenom/realtime/actions/workflows/ci.yml)
 [![PHP](https://img.shields.io/badge/php-%3E%3D8.1-blue)](https://www.php.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-## Overview
-`lphenom/realtime` provides a single `RealtimeBusInterface` that works identically in two modes:
-| Mode | Implementation | Transport |
-|------|---------------|-----------|
-| Shared hosting / long-polling | `DbEventStoreBus` | MySQL `realtime_events` table |
-| WebSocket / real-time | `WebSocketBus` | MySQL (persistence) + Redis pub/sub (fanout) |
-| Async / high-load | `QueuedPublishBus` | Any `QueueInterface` driver (DB or Redis) |
-One business-logic codebase — swap the bus without changing domain code.
-## Installation
+
+## Обзор
+
+`lphenom/realtime` предоставляет единый `RealtimeBusInterface`, который одинаково работает в двух режимах:
+
+| Режим | Реализация | Транспорт |
+|---|---|---|
+| Shared hosting / long-polling | `DbEventStoreBus` | таблица MySQL `realtime_events` |
+| WebSocket / реальное время | `WebSocketBus` | MySQL (хранение) + Redis pub/sub (fanout) |
+| Асинхронный / высоконагруженный | `QueuedPublishBus` | Любой драйвер `QueueInterface` (БД или Redis) |
+
+Одна кодовая база бизнес-логики — меняйте шину без изменения доменного кода.
+
+## Установка
+
 ```bash
 composer require lphenom/realtime
 ```
-> **Note:** This package uses VCS repositories from the LPhenom ecosystem.
-> See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions.
-## Quick start
+
+> **Примечание:** Этот пакет использует VCS-репозитории из экосистемы LPhenom.
+> Инструкции по настройке — в [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Быстрый старт
+
 ```php
 use LPhenom\Db\Driver\PdoMySqlConnection;
 use LPhenom\Realtime\Bus\DbEventStoreBus;
 use LPhenom\Realtime\Message;
-// Shared hosting: DB-only bus
+
+// Shared hosting: шина только через БД
 $connection = new PdoMySqlConnection('mysql:host=localhost;dbname=myapp', 'user', 'pass');
 $bus = new DbEventStoreBus($connection);
-// Publish a message
-$bus->publish('chat', new Message(0, 'chat', '{"text":"Hello!"}', new \DateTimeImmutable()));
-// Poll for new messages (long-polling endpoint)
+
+// Опубликовать сообщение
+$bus->publish('chat', new Message(0, 'chat', '{"text":"Привет!"}', new \DateTimeImmutable()));
+
+// Получить новые сообщения (эндпоинт long-polling)
 $messages = $bus->readSince('chat', $lastSeenId, 100);
 foreach ($messages as $msg) {
     echo $msg->getId() . ': ' . $msg->getPayloadJson() . PHP_EOL;
 }
 ```
-## Documentation
-- [docs/realtime.md](docs/realtime.md) — WebSocket vs Long-Polling guidance
-## Requirements
+
+## Документация
+
+- [docs/realtime.md](docs/realtime.md) — WebSocket vs Long-Polling: как писать единый код
+- [docs/server-setup.md](docs/server-setup.md) — Настройка сервера (shared hosting и VPS/KPHP)
+- [docs/client-guide.md](docs/client-guide.md) — Клиентская интеграция (Vue, React, Pure JS)
+
+## Требования
+
 - PHP >= 8.1
-- KPHP-compatible (no reflection, no eval, no dynamic class loading)
-## License
-MIT — see [LICENSE](LICENSE).
+- KPHP-совместим (нет reflection, нет eval, нет динамической загрузки классов)
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE).
